@@ -1,0 +1,14 @@
+{
+  "d0495dc3-1a00-4924-bd4a-7534dca552f7": [
+    {
+      "name": "Home",
+      "rtsp_url": "rtsp://admin:Darknet103@192.168.0.111:554/onvif1",
+      "added_time": "2025-07-13T18:52:47.461938"
+    },
+    {
+      "name": "Room",
+      "rtsp_url": "rtsp://admin:Darknet103@192.168.0.111:554/onvif1",
+      "added_time": "2025-07-17T20:03:08.013802"
+    }
+  ]
+}
