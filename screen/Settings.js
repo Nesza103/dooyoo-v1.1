@@ -1,10 +1,10 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { ThemeContext } from '../contexts/AppContext';
 import { UserContext } from '../contexts/AppContext';
-import { API_ENDPOINTS } from '../config';
+import { API_ENDPOINTS, setBaseUrl, getBaseUrl } from '../config';
 
 const Settings = ({ navigation }) => {
   const route = useRoute();
@@ -18,6 +18,24 @@ const Settings = ({ navigation }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [baseUrl, setBaseUrlState] = useState('');
+  const [showBaseUrlModal, setShowBaseUrlModal] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const url = await getBaseUrl();
+      setBaseUrlState(url);
+    })();
+  }, []);
+
+  const handleSaveBaseUrl = async () => {
+    await setBaseUrl(baseUrl);
+    setShowBaseUrlModal(false);
+    Alert.alert('Success', 'BASE_URL updated!');
+  };
 
   const isDarkTheme = theme === 'dark';
 
@@ -216,24 +234,33 @@ const Settings = ({ navigation }) => {
               onChangeText={setOldPassword}
               placeholder="Old Password"
               placeholderTextColor={isDarkTheme ? '#aaa' : '#888'}
-              secureTextEntry
+              secureTextEntry={!showOldPassword}
             />
+            <TouchableOpacity onPress={() => setShowOldPassword(!showOldPassword)} style={{position:'absolute', right:16, top:18}} accessibilityLabel="Show or hide old password">
+              <Ionicons name={showOldPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+            </TouchableOpacity>
             <TextInput
               style={{ borderWidth: 1, borderColor: isDarkTheme ? '#333' : '#e0e0e0', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 14, color: isDarkTheme ? '#fff' : '#222', backgroundColor: isDarkTheme ? '#333' : '#f7f7f7' }}
               value={newPassword}
               onChangeText={setNewPassword}
               placeholder="New Password"
               placeholderTextColor={isDarkTheme ? '#aaa' : '#888'}
-              secureTextEntry
+              secureTextEntry={!showNewPassword}
             />
+            <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={{position:'absolute', right:16, top:76}} accessibilityLabel="Show or hide new password">
+              <Ionicons name={showNewPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+            </TouchableOpacity>
             <TextInput
               style={{ borderWidth: 1, borderColor: isDarkTheme ? '#333' : '#e0e0e0', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 14, color: isDarkTheme ? '#fff' : '#222', backgroundColor: isDarkTheme ? '#333' : '#f7f7f7' }}
               value={confirmNewPassword}
               onChangeText={setConfirmNewPassword}
               placeholder="Confirm New Password"
               placeholderTextColor={isDarkTheme ? '#aaa' : '#888'}
-              secureTextEntry
+              secureTextEntry={!showConfirmNewPassword}
             />
+            <TouchableOpacity onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)} style={{position:'absolute', right:16, top:134}} accessibilityLabel="Show or hide confirm new password">
+              <Ionicons name={showConfirmNewPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+            </TouchableOpacity>
             {passwordError ? <Text style={{ color: '#e53935', marginBottom: 10, textAlign: 'center' }}>{passwordError}</Text> : null}
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
               <TouchableOpacity style={{ paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8, backgroundColor: '#888', marginRight: 10 }} onPress={() => setPasswordModalVisible(false)}>
@@ -244,6 +271,19 @@ const Settings = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showBaseUrlModal} animationType="slide" onRequestClose={()=>setShowBaseUrlModal(false)}>
+        <View style={{flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#191a1d'}}>
+          <Text style={{color:'#FFD600', fontWeight:'bold', fontSize:18, marginBottom:16}}>Set BASE_URL (ngrok)</Text>
+          <TextInput value={baseUrl} onChangeText={setBaseUrlState} style={{backgroundColor:'#fff', borderRadius:8, padding:12, width:300, marginBottom:16}} placeholder="https://xxxx.ngrok-free.app" />
+          <TouchableOpacity onPress={handleSaveBaseUrl} style={{backgroundColor:'#4FC3F7', padding:12, borderRadius:8}}>
+            <Text style={{color:'#fff', fontWeight:'bold'}}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={()=>setShowBaseUrlModal(false)} style={{marginTop:24}}>
+            <Text style={{color:'#FFD600', fontWeight:'bold', fontSize:16}}>Close</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
     </View>

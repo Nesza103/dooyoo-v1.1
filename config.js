@@ -1,5 +1,5 @@
-// ไฟล์ config สำหรับเซิร์ฟเวอร์
-const BASE_URL = 'https://53a5fd1e78ab.ngrok-free.app'; 
+// Server configuration file
+const BASE_URL = 'https://ffae43611720.ngrok-free.app'; 
 
 export const API_ENDPOINTS = {
   // Auth
@@ -12,7 +12,7 @@ export const API_ENDPOINTS = {
   STATUS: `${BASE_URL}/status`,
   TEST_MODEL: `${BASE_URL}/test-model`,
   PREDICT: `${BASE_URL}/predict`,
-  WS_ALERT: `${BASE_URL.replace('http', 'ws')}/ws/alert`, // auto แปลงเป็น ws://
+  WS_ALERT: `${BASE_URL.replace('http', 'ws')}/ws/alert`, // auto convert to ws://
 
   // CCTV API Endpoints
   CCTV_ADD_CAMERA: `${BASE_URL}/cctv/add-camera`,
@@ -27,4 +27,5 @@ export const API_ENDPOINTS = {
   GET_CAMERAS: `${BASE_URL}/cctv/cameras`,
   ADD_CAMERA: `${BASE_URL}/cctv/add-camera`,
   STREAM_CAMERA: `${BASE_URL}/cctv/stream/:userId/:cameraIndex`,
+  ONVIF_DISCOVER: BASE_URL + '/onvif/discover',
 }; 

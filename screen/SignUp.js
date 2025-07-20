@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { API_ENDPOINTS } from '../config';
+import { Ionicons } from '@expo/vector-icons';
 
 const SignUp = () => {
   const [email, setEmail] = useState('');
@@ -28,6 +29,8 @@ const SignUp = () => {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigation = useNavigation();
   const userContext = useContext(UserContext);
@@ -157,8 +160,11 @@ const SignUp = () => {
                   placeholder="Password"
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                 />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{padding: 8}} accessibilityLabel="Show or hide password">
+                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+                </TouchableOpacity>
               </View>
               {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
               <View style={styles.inputContainer}>
@@ -167,8 +173,11 @@ const SignUp = () => {
                   placeholder="Confirm Password"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
+                  secureTextEntry={!showConfirmPassword}
                 />
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={{padding: 8}} accessibilityLabel="Show or hide confirm password">
+                  <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+                </TouchableOpacity>
               </View>
               {confirmPasswordError ? <Text style={styles.errorText}>{confirmPasswordError}</Text> : null}
               <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>

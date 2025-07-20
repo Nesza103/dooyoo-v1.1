@@ -12,12 +12,12 @@ export default function CCTVLiveView() {
   const route = useRoute();
   const { userId, cameraIndex, camera } = route.params;
   const [videos, setVideos] = useState([]);
-  const [selectedTime, setSelectedTime] = useState(0); // นาทีในวัน (0-1439)
+  const [selectedTime, setSelectedTime] = useState(0); // minutes in day (0-1439)
   const [currentTimeLabel, setCurrentTimeLabel] = useState('00:00');
 
   const streamUrl = `${API_ENDPOINTS.STREAM_CAMERA.replace(':userId', userId).replace(':cameraIndex', cameraIndex)}`;
 
-  // ฟังก์ชันแปลงนาทีเป็นเวลา HH:MM
+  // Function to convert minutes to HH:MM time
   const formatTime = (minutes) => {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
@@ -29,13 +29,13 @@ export default function CCTVLiveView() {
   }, [selectedTime]);
 
   useEffect(() => {
-    // ดึงวิดีโอย้อนหลัง
+    // Fetch recorded videos
     fetch(`${API_ENDPOINTS.GET_VIDEOS}/${userId}`)
       .then(res => res.json())
       .then(data => setVideos(data.videos || []));
   }, [userId]);
 
-  // ฟังก์ชันเลื่อน timeline (mock)
+  // Timeline navigation functions (mock)
   const handlePrev = () => {};
   const handleNext = () => {};
 
@@ -52,7 +52,7 @@ export default function CCTVLiveView() {
 
       {/* Live Stream View Box (Fixed Size) */}
       <View style={styles.liveViewBox}>
-        {/* ลบ WebView ออกทั้งหมด เหลือแต่ No Signal หรือ placeholder อื่น */}
+        {/* Remove all WebView, keep only No Signal or other placeholder */}
         <View style={[styles.fixedVideo, {alignItems:'center', justifyContent:'center'}]}>
           <Ionicons name="videocam-off" size={48} color="#555" />
           <Text style={{color:'#888', marginTop:8}}>No Signal</Text>
@@ -86,7 +86,7 @@ export default function CCTVLiveView() {
           <Ionicons name="chevron-forward-circle" size={28} color="#fff" />
         </TouchableOpacity>
       </View>
-      {/* (สามารถเพิ่ม timeline slider จริงได้ภายหลัง) */}
+      {/* (Can add real timeline slider later) */}
 
       {/* Fall detected (mock) */}
       <View style={styles.fallBox}>

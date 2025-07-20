@@ -40,7 +40,7 @@ const Home = () => {
     activeWebsockets: 0
   });
 
-  // ตรวจสอบสถานะระบบ
+  // Check system status
   const checkSystemStatus = async () => {
     try {
       console.log('Checking system status at:', API_ENDPOINTS.STATUS);
@@ -67,7 +67,7 @@ const Home = () => {
     }
   };
 
-  // ตรวจสอบสถานะเมื่อ component mount
+  // Check status when component mounts
   useEffect(() => {
     checkSystemStatus();
   }, []);
@@ -99,7 +99,7 @@ const Home = () => {
               </View>
             </View>
           </View>
-          {/* Search bar และ Tab Navigation */}
+          {/* Search bar and Tab Navigation */}
           <View style={[styles.searchContainer, { marginTop: 8 }]}> 
             <View style={styles.searchBar}>
               <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
@@ -140,7 +140,7 @@ const Home = () => {
               </Text>
             </TouchableOpacity>
           </View>
-          {/* ScrollView หลัก */}
+          {/* Main ScrollView */}
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
               <TouchableOpacity
@@ -156,7 +156,7 @@ const Home = () => {
                 </View>
               </TouchableOpacity>
             </View>
-            {/* ปุ่มเข้าถึงระบบ CCTV */}
+            {/* CCTV System Access Button */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
               <TouchableOpacity
                 style={styles.videoCard}
@@ -172,7 +172,7 @@ const Home = () => {
               </TouchableOpacity>
             </View>
 
-            {/* ปุ่มทดสอบเปิดกล้องเพื่อ AI ตรวจจับคนล้ม */}
+            {/* Test Camera Button for AI Fall Detection */}
             {/*<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
               <TouchableOpacity
                 style={styles.videoCard}
@@ -180,15 +180,15 @@ const Home = () => {
               >
                 <View style={{ alignItems: 'center', padding: 30, width: 370, }}>
                   <Ionicons name="camera-outline" size={40} color="#2196F3" />
-                  <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>ทดสอบกล้อง AI Fall Detection</Text>
+                  <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>Test Camera AI Fall Detection</Text>
                   <Text style={{ color: '#ccc', fontSize: 12, marginTop: 5, textAlign: 'center' }}>
-                    เปิดกล้องเพื่อทดสอบการตรวจจับคนล้มด้วย AI
+                    Open camera to test AI fall detection
                   </Text>
                 </View>
               </TouchableOpacity>
             </View>}*/}
           </ScrollView>
-          {/* Footer: ปุ่ม Setting, Video List, Logout */}
+          {/* Footer: Setting, Video List, Logout Buttons */}
           <View style={styles.footer}>
             <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.footerBtn}>
                 <Ionicons name="home-outline" size={28} color="#fff" />

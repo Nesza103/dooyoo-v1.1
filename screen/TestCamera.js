@@ -40,9 +40,9 @@ export default function TestCamera() {
         const data = await response.json();
         setResult(data);
         if (data.fall_detected) {
-          Alert.alert('แจ้งเตือน', 'ตรวจพบการล้ม!');
+          Alert.alert('Alert', 'Fall detected!');
         } else {
-          Alert.alert('ผลลัพธ์', 'ไม่พบการล้ม');
+          Alert.alert('Result', 'No fall detected');
         }
       } catch (e) {
         Alert.alert('Error', e.message);
@@ -63,11 +63,11 @@ export default function TestCamera() {
       <Camera style={{ flex: 1 }} ref={cameraRef} type={Camera.Constants.Type.back} />
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.button} onPress={takePictureAndPredict} disabled={isLoading}>
-          <Text style={styles.buttonText}>{isLoading ? 'กำลังประมวลผล...' : 'ถ่ายภาพ & ตรวจจับ'}</Text>
+          <Text style={styles.buttonText}>{isLoading ? 'Processing...' : 'Take Photo & Detect'}</Text>
         </TouchableOpacity>
         {result && (
           <Text style={styles.resultText}>
-            {result.fall_detected ? 'ล้ม!' : 'ปกติ'} (ความมั่นใจ: {result.confidence})
+            {result.fall_detected ? 'Fall!' : 'Normal'} (Confidence: {result.confidence})
           </Text>
         )}
       </View>

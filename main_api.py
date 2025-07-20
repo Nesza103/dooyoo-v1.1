@@ -18,6 +18,13 @@ import subprocess
 from datetime import datetime
 import base64
 import requests
+import socket
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = FastAPI()
 
@@ -157,21 +164,34 @@ def get_status():
     }
 
 # ========== Camera Management Endpoints ==========
+relay_frames = {}  # {user_id: {camera_name: frame_bytes}}
+
+@app.post('/relay/frame/{user_id}/{camera_name}')
+async def relay_frame(user_id: str, camera_name: str, file: UploadFile = File(...)):
+    frame_bytes = await file.read()
+    if user_id not in relay_frames:
+        relay_frames[user_id] = {}
+    relay_frames[user_id][camera_name] = frame_bytes
+    return {"success": True}
+
 @app.post('/cctv/add-camera')
 async def add_camera(data: dict):
     user_id = data.get('userId')
     camera_name = data.get('cameraName')
     rtsp_url = data.get('rtspUrl')
-    if not user_id or not camera_name or not rtsp_url:
+    relay = data.get('relay', False)
+    if not user_id or not camera_name or (not rtsp_url and not relay):
         raise HTTPException(status_code=400, detail='Missing required fields')
     cameras = load_cameras()
     if user_id not in cameras:
         cameras[user_id] = []
     camera_info = {
         'name': camera_name,
-        'rtsp_url': rtsp_url,
+        'relay': relay,
         'added_time': datetime.now().isoformat()
     }
+    if not relay:
+        camera_info['rtsp_url'] = rtsp_url
     cameras[user_id].append(camera_info)
     save_cameras(cameras)
     return {
@@ -204,6 +224,9 @@ async def remove_camera(user_id: str, camera_index: int):
     }
 
 # ========== Video Recording & Streaming ==========
+AI_API_URL = os.environ.get('AI_API_URL', 'http://localhost:8000')
+# แนะนำ: ตั้ง AI_API_URL ในไฟล์ .env เป็น ngrok URL เช่น AI_API_URL=https://xxxx.ngrok-free.app
+
 def record_camera(camera_info, user_id):
     camera_name = camera_info['name']
     rtsp_url = camera_info['rtsp_url']
@@ -239,7 +262,7 @@ def record_camera(camera_info, user_id):
                 _, buffer = cv2.imencode('.jpg', frame)
                 frame_bytes = buffer.tobytes()
                 files = {'file': ('frame.jpg', frame_bytes, 'image/jpeg')}
-                response = requests.post(f"http://localhost:8000/predict", files=files, timeout=5)
+                response = requests.post(f"{AI_API_URL}/predict", files=files, timeout=5)
                 if response.status_code == 200:
                     result = response.json()
                     if result.get("fall_detected"):
@@ -296,18 +319,6 @@ async def get_video_file(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path, media_type="video/mp4", filename=filename)
 
-@app.get('/cctv/stream/{user_id}/{camera_index}')
-async def stream_camera(user_id: str, camera_index: int):
-    cameras = load_cameras()
-    if user_id not in cameras or camera_index >= len(cameras[user_id]):
-        raise HTTPException(status_code=404, detail='Camera not found')
-    camera = cameras[user_id][camera_index]
-    rtsp_url = camera['rtsp_url']
-    return StreamingResponse(
-        mjpeg_stream(rtsp_url, user_id),
-        media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
 def mjpeg_stream(rtsp_url, user_id):
     import cv2
     import time
@@ -338,7 +349,7 @@ def mjpeg_stream(rtsp_url, user_id):
                     _, buffer = cv2.imencode('.jpg', frame)
                     frame_bytes = buffer.tobytes()
                     files = {'file': ('frame.jpg', frame_bytes, 'image/jpeg')}
-                    response = requests.post(f"http://localhost:8000/predict", files=files, timeout=5)
+                    response = requests.post(f"{AI_API_URL}/predict", files=files, timeout=5)
                     if response.status_code == 200:
                         result = response.json()
                         if result.get("fall_detected"):
@@ -353,6 +364,36 @@ def mjpeg_stream(rtsp_url, user_id):
             time.sleep(0.1)  # 10 FPS
     finally:
         cap.release()
+
+@app.get('/onvif/discover')
+def onvif_discover():
+    """
+    ค้นหา ONVIF กล้องในวง LAN (server ต้องอยู่ในวงเดียวกับกล้อง)
+    คืนค่า: [{ip, xaddrs, name}]
+    """
+    try:
+        from wsdiscovery.discovery import ThreadedWSDiscovery as WSDiscovery
+    except ImportError:
+        return {"success": False, "error": "wsdiscovery library not installed. Please install with 'pip install wsdiscovery'"}
+    try:
+        wsd = WSDiscovery()
+        wsd.start()
+        services = wsd.searchServices()
+        result = []
+        for service in services:
+            xaddrs = service.getXAddrs()
+            ip = None
+            if xaddrs:
+                ip = xaddrs[0].split('/')[2].split(':')[0]
+            result.append({
+                "ip": ip,
+                "xaddrs": xaddrs,
+                "name": service.getEPR(),
+            })
+        wsd.stop()
+        return {"success": True, "devices": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 # ========== Main ===========
 if __name__ == "__main__":

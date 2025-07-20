@@ -17,6 +17,7 @@ import { useContext } from 'react';
 import { UserContext } from '../contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_ENDPOINTS } from '../config';
+import { Ionicons } from '@expo/vector-icons';
 
 const Login = () => {
   const userContext = useContext(UserContext);
@@ -24,6 +25,7 @@ const Login = () => {
   const navigation = useNavigation();
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const [usernameError, setUsernameError] = React.useState('');
   const [passwordError, setPasswordError] = React.useState('');
@@ -103,9 +105,12 @@ const Login = () => {
                   placeholderTextColor="#ccc"
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   style={styles.input}
                 />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{padding: 8}} accessibilityLabel="Show or hide password">
+                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+                </TouchableOpacity>
               </View>
               {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
               <TouchableOpacity 
