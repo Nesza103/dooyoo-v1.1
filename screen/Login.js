@@ -79,71 +79,73 @@ const Login = () => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
-        style={styles.container}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ImageBackground source={require('../assets/loginBackground.png')} style={{ flex: 1 }} resizeMode="cover">
-          <View style={{ flex: 1 }}>
-            <View style={styles.contentContainer}>
-              <Text style={styles.title}>Login to your account</Text>
-              <Text style={styles.subtitle}>Please enter your details</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  placeholder="Username"
-                  placeholderTextColor="#ccc"
-                  value={username}
-                  onChangeText={setUsername}
-                  style={styles.input}
-                  autoCapitalize="none"
-                />
-              </View>
-              {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
-              <View style={styles.inputContainer}>
-                <TextInput
-                  placeholder="Password"
-                  placeholderTextColor="#ccc"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  style={styles.input}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{padding: 8}} accessibilityLabel="Show or hide password">
-                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
-                </TouchableOpacity>
-              </View>
-              {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
-              <TouchableOpacity 
-                style={styles.forgotPassword}
-                onPress={() => alert('Forgot Password pressed')}
-              >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.loginButton}
-                onPress={handleLogin}
-              >
-                <Text style={styles.loginButtonText}>Login</Text>
-              </TouchableOpacity>
-              <View style={styles.orContainer}>
-                <View style={styles.orLine} />
-                <Text style={styles.orText}>or login with</Text>
-                <View style={styles.orLine} />
-              </View>
-              <View style={styles.signUpContainer}>
-                <Text style={styles.signUpText}>Don't have an account? </Text>
-                <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                  <Text style={styles.signUpLink}>Sign Up</Text>
-                </TouchableOpacity>
-              </View>
+
+        <ImageBackground
+          source={require('../assets/loginBackground.png')}
+          style={{ flex: 1, width: '100%', height: '100%' }}
+          resizeMode="cover"
+        >
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Login to your account</Text>
+            <Text style={styles.subtitle}>Please enter your details</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                placeholder="Username"
+                placeholderTextColor="#ccc"
+                value={username}
+                onChangeText={setUsername}
+                style={styles.input}
+                autoCapitalize="none"
+              />
             </View>
-            <StatusBar style="light" />
+            {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
+            <View style={styles.inputContainer}>
+              <TextInput
+                placeholder="Password"
+                placeholderTextColor="#ccc"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                style={styles.input}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{padding: 8}} accessibilityLabel="Show or hide password">
+                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#888" />
+              </TouchableOpacity>
+            </View>
+            {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+            <TouchableOpacity 
+              style={styles.forgotPassword}
+              onPress={() => alert('Forgot Password pressed')}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleLogin}
+            >
+              <Text style={styles.loginButtonText}>Login</Text>
+            </TouchableOpacity>
+            <View style={styles.orContainer}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>or login with</Text>
+              <View style={styles.orLine} />
+            </View>
+            <View style={styles.signUpContainer}>
+              <Text style={styles.signUpText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+                <Text style={styles.signUpLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ImageBackground>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
-  );
-};
+    );
+  };
 
 const styles = StyleSheet.create({
   container: {
@@ -151,8 +153,14 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     flex: 1,
-    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
   },
+  
+  fullScreen: {
+    flex: 1,
+  },
+  
   contentContainer: {
     backgroundColor: 'rgba(233, 224, 224, 0.7)',
     borderTopLeftRadius: 15,

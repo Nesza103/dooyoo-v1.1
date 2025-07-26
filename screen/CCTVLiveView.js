@@ -15,7 +15,9 @@ export default function CCTVLiveView() {
   const [selectedTime, setSelectedTime] = useState(0); // minutes in day (0-1439)
   const [currentTimeLabel, setCurrentTimeLabel] = useState('00:00');
 
-  const streamUrl = `${API_ENDPOINTS.STREAM_CAMERA.replace(':userId', userId).replace(':cameraIndex', cameraIndex)}`;
+  const streamUrl = camera?.rtsp_url
+    ? `${API_ENDPOINTS.STREAM_CAMERA.replace(':userId', userId).replace(':cameraIndex', cameraIndex)}`
+    : null;
 
   // Function to convert minutes to HH:MM time
   const formatTime = (minutes) => {
@@ -52,11 +54,18 @@ export default function CCTVLiveView() {
 
       {/* Live Stream View Box (Fixed Size) */}
       <View style={styles.liveViewBox}>
-        {/* Remove all WebView, keep only No Signal or other placeholder */}
-        <View style={[styles.fixedVideo, {alignItems:'center', justifyContent:'center'}]}>
-          <Ionicons name="videocam-off" size={48} color="#555" />
-          <Text style={{color:'#888', marginTop:8}}>No Signal</Text>
-        </View>
+        {streamUrl ? (
+          <Image
+            source={{ uri: streamUrl + '?t=' + Date.now() }}
+            style={styles.fixedVideo}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.fixedVideo, {alignItems:'center', justifyContent:'center'}]}>
+            <Ionicons name="videocam-off" size={48} color="#555" />
+            <Text style={{color:'#888', marginTop:8}}>No Signal</Text>
+          </View>
+        )}
       </View>
 
       {/* Timeline Slider */}

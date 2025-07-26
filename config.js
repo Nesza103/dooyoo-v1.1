@@ -1,5 +1,6 @@
 // Server configuration file
-const BASE_URL = 'https://ffae43611720.ngrok-free.app'; 
+// Development mode: Use local IP (replace with your computer's IP)
+const BASE_URL = 'https://400b24f03118.ngrok-free.app'; // Change this to your computer's IP 
 
 export const API_ENDPOINTS = {
   // Auth
@@ -20,6 +21,7 @@ export const API_ENDPOINTS = {
   CCTV_REMOVE_CAMERA: `${BASE_URL}/cctv/remove-camera`,
   CCTV_START_RECORDING: `${BASE_URL}/cctv/start-recording`,
   CCTV_STATUS: `${BASE_URL}/cctv/status`,
+  EDIT_CAMERA: `${BASE_URL}/cctv/edit-camera`,
 
   // Camera Viewing Endpoints
   CCTV_VIEW_CAMERA: `${BASE_URL}/cctv/view`,
@@ -28,4 +30,12 @@ export const API_ENDPOINTS = {
   ADD_CAMERA: `${BASE_URL}/cctv/add-camera`,
   STREAM_CAMERA: `${BASE_URL}/cctv/stream/:userId/:cameraIndex`,
   ONVIF_DISCOVER: BASE_URL + '/onvif/discover',
+
+  // Video API Endpoints
+  GET_VIDEOS: `${BASE_URL}/videos`,
+  GET_VIDEO_FILE: `${BASE_URL}/video`,
+  GET_ACCIDENT_VIDEOS: `${BASE_URL}/accident-videos`,
+  GET_ACCIDENT_VIDEO_FILE: `${BASE_URL}/accident-video-file`,
+  START_MONITORING: `${BASE_URL}/start-monitoring`,
+  STOP_MONITORING: `${BASE_URL}/stop-monitoring`,
 }; 

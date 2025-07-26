@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, StatusBar, Modal, TextInput, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, StatusBar, Modal, TextInput, Alert, Platform, PermissionsAndroid } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AddCameraModal from '../components/AddCameraModal';
 import { API_ENDPOINTS } from '../config';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useContext } from 'react';
 import { UserContext } from '../contexts/AppContext';
+import { discoverOnvifCameras } from '../utils/onvifDiscovery';
 
 export default function CCTV() {
   const [cameras, setCameras] = useState([]);
@@ -14,14 +15,19 @@ export default function CCTV() {
   const [modalVisible, setModalVisible] = useState(false);
   const navigation = useNavigation();
   const { userId } = useContext(UserContext);
-  const [foundCameras, setFoundCameras] = useState([]); // --- NEW
-  const [showFoundModal, setShowFoundModal] = useState(false); // --- NEW
+  const [foundCameras, setFoundCameras] = useState([]);
+  const [showFoundModal, setShowFoundModal] = useState(false);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [camUser, setCamUser] = useState('admin');
   const [camPass, setCamPass] = useState('');
   const [relayModalVisible, setRelayModalVisible] = useState(false);
   const [relayCameraName, setRelayCameraName] = useState('');
   const [relayLoading, setRelayLoading] = useState(false);
+  
+  // AI Monitoring states
+  const [selectedCamerasForAI, setSelectedCamerasForAI] = useState([]);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [showAISelectionModal, setShowAISelectionModal] = useState(false);
 
   const fetchCameras = async () => {
     setLoading(true);
@@ -35,25 +41,122 @@ export default function CCTV() {
     setLoading(false);
   };
 
+  // Refresh cameras when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchCameras();
+    }, [userId])
+  );
+
   useEffect(() => {
-    fetchCameras();
-  }, [modalVisible]);
+    async function requestPermissions() {
+      if (Platform.OS === 'android') {
+        try {
+          await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.CHANGE_WIFI_MULTICAST_STATE,
+            {
+              title: 'WiFi Multicast Permission',
+              message: 'This app needs WiFi multicast permission to discover cameras on your network.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            },
+          );
+          await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: 'Location Permission',
+              message: 'This app needs location permission to scan for cameras on your WiFi.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            },
+          );
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+    }
+    requestPermissions();
+  }, []);
 
   const handleAddCamera = () => setModalVisible(true);
   const handleCameraPress = (index) => {
     navigation.navigate('CCTVLiveView', { userId, cameraIndex: index, camera: cameras[index] });
   };
 
+  // AI Monitoring functions
+  const toggleCameraSelection = (cameraIndex) => {
+    setSelectedCamerasForAI(prev => {
+      if (prev.includes(cameraIndex)) {
+        return prev.filter(index => index !== cameraIndex);
+      } else {
+        return [...prev, cameraIndex];
+      }
+    });
+  };
+
+  const startAIMonitoring = async () => {
+    if (selectedCamerasForAI.length === 0) {
+      Alert.alert('Error', 'Please select at least one camera for AI monitoring');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_ENDPOINTS.START_MONITORING}/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          selectedCameras: selectedCamerasForAI
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setIsMonitoring(true);
+        Alert.alert('Success', `Started monitoring ${selectedCamerasForAI.length} camera(s)`);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to start monitoring');
+      }
+    } catch (error) {
+      console.error('Error starting monitoring:', error);
+      Alert.alert('Error', 'Failed to start monitoring');
+    }
+  };
+
+  const stopAIMonitoring = async () => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.STOP_MONITORING}/${userId}`, {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setIsMonitoring(false);
+        Alert.alert('Success', 'Stopped AI monitoring');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to stop monitoring');
+      }
+    } catch (error) {
+      console.error('Error stopping monitoring:', error);
+      Alert.alert('Error', 'Failed to stop monitoring');
+    }
+  };
+
   // --- REMOVED: handleDiscoverCameras, discoveredCameras, discovering, showDiscoveryModal, selectedCamera, camUser, camPass
   // --- NEW: ฟังก์ชันค้นหา ONVIF บนมือถือ (mock/demo)
   const discoverOnvifDevices = async () => {
-    // TODO: ใช้ react-native-udp หรือ native module จริง
-    // ตัวอย่าง mock: เจอกล้อง 2 ตัว
-    setFoundCameras([
-      { name: 'ONVIF Camera 1', ip: '192.168.1.101', rtsp_url: 'rtsp://192.168.1.101:554/stream1' },
-      { name: 'ONVIF Camera 2', ip: '192.168.1.102', rtsp_url: 'rtsp://192.168.1.102:554/stream2' },
-    ]);
-    setShowFoundModal(true);
+    setLoading(true);
+    try {
+      const devices = await discoverOnvifCameras();
+      setFoundCameras(devices);
+      setShowFoundModal(true);
+    } catch (e) {
+      Alert.alert('Discovery Error', e.message);
+    }
+    setLoading(false);
   };
 
   const handleSelectDiscoveredCamera = (cam) => {
@@ -143,6 +246,30 @@ export default function CCTV() {
     );
   };
 
+  const handleEditCamera = async (index, newName, newRtspUrl) => {
+    try {
+      const res = await fetch(`${API_ENDPOINTS.EDIT_CAMERA}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          cameraIndex: index,
+          cameraName: newName,
+          rtspUrl: newRtspUrl
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        Alert.alert('Success', 'Camera updated');
+        fetchCameras();
+      } else {
+        Alert.alert('Error', data.message || 'Failed to update camera');
+      }
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7f9fa" />
@@ -158,16 +285,7 @@ export default function CCTV() {
           <Ionicons name="add-circle-outline" size={48} color="#4FC3F7" />
           <Text style={styles.addBoxText}>Add Camera</Text>
         </TouchableOpacity>
-        {/* --- REMOVED: ปุ่ม Discover cameras on same WiFi เดิม */}
-        {/* --- NEW: ปุ่ม Discover cameras on same WiFi ใหม่ */}
-        <TouchableOpacity style={[styles.addBox, {backgroundColor:'#FFD600'}]} onPress={discoverOnvifDevices}>
-          <Ionicons name="search" size={32} color="#23243a" />
-          <Text style={{color:'#23243a', fontWeight:'bold', marginTop:6}}>Discover cameras on same WiFi</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.addBox, {backgroundColor:'#4FC3F7'}]} onPress={()=>setRelayModalVisible(true)}>
-          <Ionicons name="cloud-upload" size={32} color="#fff" />
-          <Text style={{color:'#fff', fontWeight:'bold', marginTop:6}}>Add Relay Camera (Home/NAT)</Text>
-        </TouchableOpacity>
+        {/* ลบปุ่ม Discover และ Add Relay Camera เดิมใน contentBox */}
         {loading ? (
           <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
         ) : (
@@ -188,6 +306,25 @@ export default function CCTV() {
                 <TouchableOpacity onPress={() => handleDeleteCamera(index)} style={{position:'absolute', top:12, right:12, padding:6}} accessibilityLabel="Delete camera">
                   <Ionicons name="trash" size={22} color="#e53935" />
                 </TouchableOpacity>
+                {/* ปุ่ม Edit RTSP URL */}
+                {item.rtsp_url && (
+                  <View style={{marginTop:8}}>
+                    <TextInput
+                      value={item.rtsp_url}
+                      onChangeText={text => {
+                        const newCams = [...cameras];
+                        newCams[index].rtsp_url = text;
+                        setCameras(newCams);
+                      }}
+                      style={{backgroundColor:'#fff', borderRadius:8, padding:8, marginVertical:4, fontSize:13}}
+                      placeholder="RTSP URL"
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity onPress={() => handleEditCamera(index, item.name, item.rtsp_url)} style={{backgroundColor:'#FFD600', borderRadius:8, padding:8, alignItems:'center', marginTop:4}}>
+                      <Text style={{color:'#23243a', fontWeight:'bold', fontSize:13}}>Save RTSP URL</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
             contentContainerStyle={{ paddingBottom: 120 }}
@@ -212,6 +349,15 @@ export default function CCTV() {
               <View style={[styles.card, {borderColor:'#FFD600', borderWidth:1}]}> 
                 <Text style={styles.cameraName}>{item.name || item.ip}</Text>
                 <Text style={styles.cameraUrl}>{item.rtsp_url}</Text>
+                <TextInput
+                  value={item.rtsp_url}
+                  onChangeText={text => {
+                    setFoundCameras(foundCameras.map(cam => cam.ip === item.ip ? {...cam, rtsp_url: text} : cam));
+                  }}
+                  style={{backgroundColor:'#fff', borderRadius:8, padding:8, marginVertical:8}}
+                  placeholder="RTSP URL"
+                  autoCapitalize="none"
+                />
                 <TouchableOpacity style={[styles.addBox, {backgroundColor:'#4FC3F7', marginTop:12}]} onPress={()=>handleAddDiscoveredCameraMobile(item)}>
                   <Text style={{color:'#fff', fontWeight:'bold'}}>Add this camera</Text>
                 </TouchableOpacity>
@@ -246,6 +392,27 @@ export default function CCTV() {
           </TouchableOpacity>
         </View>
       </Modal>
+      {/* เพิ่ม Floating Action Button (FAB) สำหรับ Discover Camera และ Add Relay Camera */}
+      <View style={{position:'absolute', left:24, bottom:32, alignItems:'center'}}>
+        <TouchableOpacity
+          style={{width:64, height:64, borderRadius:32, backgroundColor:'#FFD600', alignItems:'center', justifyContent:'center', elevation:6, shadowColor:'#000', shadowOpacity:0.18, shadowRadius:8}}
+          onPress={discoverOnvifDevices}
+          accessibilityLabel="Discover cameras on same WiFi"
+        >
+          <Ionicons name="search" size={32} color="#23243a" />
+        </TouchableOpacity>
+        <Text style={{color:'#FFD600', fontWeight:'bold', fontSize:13, marginTop:6, textShadowColor:'#23243a', textShadowRadius:2}}>Discover</Text>
+      </View>
+      <View style={{position:'absolute', right:24, bottom:32, alignItems:'center'}}>
+        <TouchableOpacity
+          style={{width:64, height:64, borderRadius:32, backgroundColor:'#4FC3F7', alignItems:'center', justifyContent:'center', elevation:6, shadowColor:'#000', shadowOpacity:0.18, shadowRadius:8}}
+          onPress={()=>setRelayModalVisible(true)}
+          accessibilityLabel="Add Relay Camera"
+        >
+          <Ionicons name="cloud-upload" size={32} color="#fff" />
+        </TouchableOpacity>
+        <Text style={{color:'#4FC3F7', fontWeight:'bold', fontSize:13, marginTop:6, textShadowColor:'#23243a', textShadowRadius:2}}>Relay</Text>
+      </View>
     </View>
   );
 }

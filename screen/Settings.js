@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Alert, Modal, TextInput, Platform, PermissionsAndroid } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { ThemeContext } from '../contexts/AppContext';
@@ -23,12 +23,55 @@ const Settings = ({ navigation }) => {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [multicastGranted, setMulticastGranted] = useState(false);
+  const [locationGranted, setLocationGranted] = useState(false);
+
+  const checkPermissions = async () => {
+    if (Platform.OS === 'android') {
+      const multicast = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CHANGE_WIFI_MULTICAST_STATE);
+      const location = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+      setMulticastGranted(multicast);
+      setLocationGranted(location);
+    }
+  };
+
+  const requestPermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const multicast = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CHANGE_WIFI_MULTICAST_STATE,
+          {
+            title: 'WiFi Multicast Permission',
+            message: 'This app needs WiFi multicast permission to discover cameras on your network.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        const location = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message: 'This app needs location permission to scan for cameras on your WiFi.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        setMulticastGranted(multicast === PermissionsAndroid.RESULTS.GRANTED);
+        setLocationGranted(location === PermissionsAndroid.RESULTS.GRANTED);
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+  };
 
   useEffect(() => {
     (async () => {
       const url = await getBaseUrl();
       setBaseUrlState(url);
     })();
+    checkPermissions();
   }, []);
 
   const handleSaveBaseUrl = async () => {
@@ -286,6 +329,18 @@ const Settings = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </Modal>
+      {Platform.OS === 'android' && (
+        <View style={{marginTop:24, marginBottom:8, padding:12, backgroundColor:'#23243a', borderRadius:12}}>
+          <Text style={{color:'#FFD600', fontWeight:'bold', fontSize:16, marginBottom:8}}>Camera Discovery Permissions</Text>
+          <Text style={{color:'#fff', fontSize:13, marginBottom:8}}>
+            WiFi Multicast: {multicastGranted ? 'Granted' : 'Not granted'}
+            {'\n'}Location: {locationGranted ? 'Granted' : 'Not granted'}
+          </Text>
+          <TouchableOpacity onPress={requestPermissions} style={{backgroundColor:'#FFD600', borderRadius:8, padding:10, alignItems:'center'}}>
+            <Text style={{color:'#23243a', fontWeight:'bold'}}>Request Permissions</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };

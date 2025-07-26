@@ -133,6 +133,7 @@ const SignUp = () => {
           <View style={{ flex: 1 }}>
             <View style={styles.contentContainer}>
               <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>Please enter your details</Text>
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
@@ -214,13 +215,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 30,
+    marginBottom: 10,
     textAlign: 'center',
   },
   inputContainer: {

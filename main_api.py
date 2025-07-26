@@ -2,6 +2,8 @@
 from fastapi import FastAPI, File, UploadFile, WebSocket, HTTPException, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List
 import torch
 from PIL import Image
 import io
@@ -38,14 +40,19 @@ app.add_middleware(
 
 # ========== AI Model Section ==========
 try:
-    model = models.resnet50(weights=None)
-    num_ftrs = model.fc.in_features
-    model.fc = torch.nn.Linear(num_ftrs, 2)
-    model.load_state_dict(torch.load('fall_model_best.pt', map_location=torch.device('cpu')))
+    # Try to load custom YOLOv5 model first
+    if os.path.exists('yolov5m.pt'):
+        model = torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5m.pt', force_reload=False)
+        print("✅ Custom YOLOv5 model loaded successfully")
+    else:
+        # Load pre-trained YOLOv5m from hub
+        model = torch.hub.load('ultralytics/yolov5', 'yolov5m', pretrained=True)
+        print("✅ Pre-trained YOLOv5m model loaded successfully")
+    
     model.eval()
-    print("✅ Model fall_model_best.pt loaded successfully")
 except Exception as e:
-    print(f"❌ Cannot load model: {e}")
+    print(f"❌ Cannot load YOLOv5 model: {e}")
+    print("⚠️ Running without AI model - fall detection disabled")
     model = None
 
 val_transforms = transforms.Compose([
@@ -200,6 +207,22 @@ async def add_camera(data: dict):
         'camera': camera_info
     }
 
+@app.patch('/cctv/edit-camera')
+async def edit_camera(data: dict):
+    user_id = data.get('userId')
+    camera_index = data.get('cameraIndex')
+    new_name = data.get('cameraName')
+    new_rtsp_url = data.get('rtspUrl')
+    cameras = load_cameras()
+    if user_id not in cameras or camera_index >= len(cameras[user_id]):
+        raise HTTPException(status_code=404, detail='Camera not found')
+    if new_name:
+        cameras[user_id][camera_index]['name'] = new_name
+    if new_rtsp_url:
+        cameras[user_id][camera_index]['rtsp_url'] = new_rtsp_url
+    save_cameras(cameras)
+    return {'success': True, 'camera': cameras[user_id][camera_index]}
+
 @app.get('/cctv/cameras/{user_id}')
 async def get_cameras(user_id: str):
     cameras = load_cameras()
@@ -223,9 +246,128 @@ async def remove_camera(user_id: str, camera_index: int):
         'removed_camera': removed_camera
     }
 
-# ========== Video Recording & Streaming ==========
 AI_API_URL = os.environ.get('AI_API_URL', 'http://localhost:8000')
-# แนะนำ: ตั้ง AI_API_URL ในไฟล์ .env เป็น ngrok URL เช่น AI_API_URL=https://xxxx.ngrok-free.app
+
+monitoring_threads = {}  # {user_id: {camera_index: thread}}
+accident_videos = {}  # {user_id: [accident_video_data]}
+
+def save_accident_clip(user_id, camera_name, frames_buffer, accident_time):
+    """Save accident video clip (±5 seconds around incident)"""
+    try:
+        os.makedirs('accident_clips', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'accident_{user_id}_{camera_name}_{timestamp}.avi'
+        filepath = f'accident_clips/{filename}'
+        
+        # Save video clip
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        out = cv2.VideoWriter(filepath, fourcc, 20.0, (640, 480))
+        
+        for frame in frames_buffer:
+            out.write(frame)
+        out.release()
+        
+        # Store accident video info
+        if user_id not in accident_videos:
+            accident_videos[user_id] = []
+        
+        accident_info = {
+            'filename': filename,
+            'filepath': filepath,
+            'camera_name': camera_name,
+            'accident_time': accident_time,
+            'created': int(time.time()),
+            'duration': len(frames_buffer) / 20.0  # assuming 20 FPS
+        }
+        accident_videos[user_id].append(accident_info)
+        
+        print(f"✅ Accident clip saved: {filepath}")
+        return accident_info
+    except Exception as e:
+        print(f"❌ Error saving accident clip: {e}")
+        return None
+
+def continuous_monitor_camera(user_id, camera_index, camera_info):
+    """Continuously monitor camera for fall detection"""
+    camera_name = camera_info['name']
+    rtsp_url = camera_info.get('rtsp_url', '')
+    
+    print(f"🔍 Starting continuous monitoring for {camera_name} (User: {user_id})")
+    
+    # Frame buffer for accident clips (±5 seconds = ~100 frames at 10 FPS)
+    frames_buffer = []
+    buffer_size = 100
+    
+    try:
+        if rtsp_url.startswith('rtsp://'):
+            video = cv2.VideoCapture(rtsp_url)
+            video.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        else:
+            video = cv2.VideoCapture(int(rtsp_url) if rtsp_url.isdigit() else 0)
+        
+        if not video.isOpened():
+            print(f"❌ Cannot open camera: {camera_name}")
+            return
+        
+        video.set(3, 640)
+        video.set(4, 480)
+        
+        frame_count = 0
+        check_interval = 10  # Check every 10 frames for better performance
+        
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                print(f"⚠️ Lost connection to camera: {camera_name}")
+                time.sleep(5)  # Wait before retry
+                continue
+            
+            # Add frame to buffer
+            frames_buffer.append(frame.copy())
+            if len(frames_buffer) > buffer_size:
+                frames_buffer.pop(0)
+            
+            # Check for fall detection
+            if frame_count % check_interval == 0 and model is not None:
+                try:
+                    # Convert frame to PIL Image
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    pil_image = Image.fromarray(frame_rgb)
+                    
+                    # Transform and predict
+                    input_tensor = transform_image(pil_image).unsqueeze(0)
+                    with torch.no_grad():
+                        outputs = model(input_tensor)
+                        _, predicted = torch.max(outputs, 1)
+                        confidence = torch.nn.functional.softmax(outputs, dim=1)[0]
+                        
+                        # If fall detected (class 1) with high confidence
+                        if predicted.item() == 1 and confidence[1].item() > 0.7:
+                            accident_time = datetime.now()
+                            print(f"🚨 FALL DETECTED! Camera: {camera_name}, User: {user_id}, Confidence: {confidence[1].item():.2f}")
+                            
+                            # Save accident clip
+                            accident_info = save_accident_clip(user_id, camera_name, frames_buffer.copy(), accident_time)
+                            
+                            # Send alert to user
+                            alert_message = f"🚨 Fall detected in {camera_name} at {accident_time.strftime('%H:%M:%S')}!"
+                            asyncio.run(send_alert_to_user(user_id, alert_message))
+                            
+                            # Wait before next detection to avoid spam
+                            time.sleep(10)
+                            
+                except Exception as e:
+                    print(f"❌ Error in fall detection: {e}")
+            
+            frame_count += 1
+            time.sleep(0.1)  # 10 FPS monitoring
+            
+    except Exception as e:
+        print(f"❌ Error in continuous monitoring: {e}")
+    finally:
+        if 'video' in locals():
+            video.release()
+        print(f"🔚 Stopped monitoring camera: {camera_name}")
 
 def record_camera(camera_info, user_id):
     camera_name = camera_info['name']
@@ -369,7 +511,7 @@ def mjpeg_stream(rtsp_url, user_id):
 def onvif_discover():
     """
     ค้นหา ONVIF กล้องในวง LAN (server ต้องอยู่ในวงเดียวกับกล้อง)
-    คืนค่า: [{ip, xaddrs, name}]
+    คืนค่า: [{ip, xaddrs, name, rtsp_url}]
     """
     try:
         from wsdiscovery.discovery import ThreadedWSDiscovery as WSDiscovery
@@ -384,16 +526,113 @@ def onvif_discover():
             xaddrs = service.getXAddrs()
             ip = None
             if xaddrs:
-                ip = xaddrs[0].split('/')[2].split(':')[0]
+                try:
+                    ip = xaddrs[0].split('/')[2].split(':')[0]
+                except Exception:
+                    ip = None
+            name = service.getEPR()
+            # เดา RTSP URL (มาตรฐาน ONVIF ส่วนใหญ่ใช้ 554)
+            rtsp_url = f"rtsp://{ip}:554/Streaming/Channels/101" if ip else None
             result.append({
                 "ip": ip,
                 "xaddrs": xaddrs,
-                "name": service.getEPR(),
+                "name": name,
+                "rtsp_url": rtsp_url
             })
         wsd.stop()
         return {"success": True, "devices": result}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+@app.get('/cctv/stream/{user_id}/{camera_index}')
+def stream_camera(user_id: str, camera_index: int):
+    cameras = load_cameras()
+    if user_id not in cameras or camera_index >= len(cameras[user_id]):
+        raise HTTPException(status_code=404, detail='Camera not found')
+    camera = cameras[user_id][camera_index]
+    rtsp_url = camera.get('rtsp_url')
+    if not rtsp_url:
+        raise HTTPException(status_code=400, detail='No RTSP URL for this camera')
+    return StreamingResponse(mjpeg_stream(rtsp_url, user_id), media_type='multipart/x-mixed-replace; boundary=frame')
+
+# ========== Accident Videos API ==========
+@app.get('/accident-videos/{user_id}')
+async def get_accident_videos(user_id: str):
+    """Get accident videos for a specific user"""
+    user_accidents = accident_videos.get(user_id, [])
+    return {
+        'success': True,
+        'videos': user_accidents,
+        'count': len(user_accidents)
+    }
+
+@app.get('/accident-video-file/{filename}')
+async def get_accident_video_file(filename: str):
+    """Serve accident video file"""
+    folder = 'accident_clips'
+    file_path = os.path.join(folder, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Accident video not found")
+    return FileResponse(file_path, media_type="video/avi", filename=filename)
+
+class MonitoringRequest(BaseModel):
+    selectedCameras: List[int] = []
+
+@app.post('/start-monitoring/{user_id}')
+async def start_monitoring(user_id: str, request: MonitoringRequest, background_tasks: BackgroundTasks):
+    """Start continuous monitoring for selected user cameras"""
+    cameras = load_cameras()
+    if user_id not in cameras:
+        raise HTTPException(status_code=404, detail='No cameras found for user')
+    
+    user_cameras = cameras[user_id]
+    selected_cameras = request.selectedCameras
+    
+    # If no cameras selected, return error
+    if not selected_cameras:
+        raise HTTPException(status_code=400, detail='No cameras selected for monitoring')
+    
+    if user_id not in monitoring_threads:
+        monitoring_threads[user_id] = {}
+    
+    started_cameras = []
+    for camera_index in selected_cameras:
+        if camera_index >= len(user_cameras):
+            continue
+            
+        camera_info = user_cameras[camera_index]
+        if camera_info.get('rtsp_url') and not camera_info.get('relay'):
+            # Start monitoring thread for this camera
+            thread = threading.Thread(
+                target=continuous_monitor_camera,
+                args=(user_id, camera_index, camera_info),
+                daemon=True
+            )
+            thread.start()
+            monitoring_threads[user_id][camera_index] = thread
+            started_cameras.append(camera_info['name'])
+    
+    return {
+        'success': True,
+        'message': f'Started monitoring {len(started_cameras)} selected cameras',
+        'cameras': started_cameras
+    }
+
+@app.post('/stop-monitoring/{user_id}')
+async def stop_monitoring(user_id: str):
+    """Stop continuous monitoring for user cameras"""
+    if user_id in monitoring_threads:
+        # Note: In a real implementation, you'd need a proper way to stop threads
+        # For now, we'll just clear the references
+        monitoring_threads[user_id] = {}
+        return {
+            'success': True,
+            'message': 'Monitoring stopped for all cameras'
+        }
+    return {
+        'success': False,
+        'message': 'No active monitoring found for user'
+    }
 
 # ========== Main ===========
 if __name__ == "__main__":

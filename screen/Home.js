@@ -24,6 +24,10 @@ import BouncingBoxesBackground from '../components/BouncingBoxesBackground';
 import { UserContext } from '../contexts/AppContext';
 import { API_ENDPOINTS } from '../config';
 import TestCamera from './TestCamera';
+import AddCameraModal from '../components/AddCameraModal';
+import { wp, hp, rf, spacing, iconSizes, borderRadius, getScreenDimensions } from '../utils/responsive';
+
+const screenInfo = getScreenDimensions();
 
 const { width, height } = Dimensions.get('window');
 
@@ -39,6 +43,12 @@ const Home = () => {
     modelLoaded: false,
     activeWebsockets: 0
   });
+  const [addCameraModalVisible, setAddCameraModalVisible] = useState(false);
+  const [cameras, setCameras] = useState([]);
+  const [accidentVideos, setAccidentVideos] = useState([]);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [selectedCameras, setSelectedCameras] = useState([]);
+  const [showCameraSelector, setShowCameraSelector] = useState(false);
 
   // Check system status
   const checkSystemStatus = async () => {
@@ -67,10 +77,134 @@ const Home = () => {
     }
   };
 
-  // Check status when component mounts
+  // Fetch cameras for status tab
+  const fetchCameras = async () => {
+    try {
+      const res = await fetch(`${API_ENDPOINTS.GET_CAMERAS}/${userId}`);
+      const data = await res.json();
+      setCameras(data.cameras || []);
+    } catch (e) {
+      setCameras([]);
+    }
+  };
+
+  // Fetch accident videos
+  const fetchAccidentVideos = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_ENDPOINTS.GET_ACCIDENT_VIDEOS}/${userId}`);
+      const data = await res.json();
+      setAccidentVideos(data.videos || []);
+    } catch (e) {
+      console.error('Error fetching accident videos:', e);
+      setAccidentVideos([]);
+    }
+  };
+
+  // Toggle camera selection
+  const toggleCameraSelection = (cameraIndex) => {
+    setSelectedCameras(prev => {
+      if (prev.includes(cameraIndex)) {
+        return prev.filter(index => index !== cameraIndex);
+      } else {
+        return [...prev, cameraIndex];
+      }
+    });
+  };
+
+  // Select all cameras
+  const selectAllCameras = () => {
+    const allCameraIndices = cameras.map((_, index) => index).filter(index => 
+      cameras[index].rtsp_url && !cameras[index].relay
+    );
+    setSelectedCameras(allCameraIndices);
+  };
+
+  // Clear camera selection
+  const clearCameraSelection = () => {
+    setSelectedCameras([]);
+  };
+
+  // Start AI monitoring for selected cameras
+  const startMonitoring = async () => {
+    if (!userId) return;
+    
+    if (selectedCameras.length === 0) {
+      Alert.alert(
+        'Select Cameras',
+        'Please select at least one camera to monitor',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Select Cameras', onPress: () => setShowCameraSelector(true) }
+        ]
+      );
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_ENDPOINTS.START_MONITORING}/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedCameras })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsMonitoring(true);
+        setShowCameraSelector(false);
+        Alert.alert('AI Monitoring Started', `Started monitoring ${selectedCameras.length} selected cameras`);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to start monitoring');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to start monitoring');
+    }
+  };
+
+  // Stop AI monitoring
+  const stopMonitoring = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_ENDPOINTS.STOP_MONITORING}/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsMonitoring(false);
+        Alert.alert('AI Monitoring Stopped', data.message);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to stop monitoring');
+    }
+  };
+
+  // Get filtered accident videos based on selected cameras
+  const getFilteredAccidentVideos = () => {
+    if (selectedCameras.length === 0) {
+      return accidentVideos;
+    }
+    
+    const selectedCameraNames = selectedCameras.map(index => cameras[index]?.name).filter(Boolean);
+    return accidentVideos.filter(video => 
+      selectedCameraNames.includes(video.camera_name)
+    );
+  };
+
+  // Check status and fetch cameras when component mounts
   useEffect(() => {
     checkSystemStatus();
-  }, []);
+    if (userId) {
+      fetchCameras();
+      fetchAccidentVideos();
+    }
+  }, [userId]);
+
+  // Fetch accident videos when switching to accident tab
+  useEffect(() => {
+    if (selectedTab === 'accident' && userId) {
+      fetchAccidentVideos();
+    }
+  }, [selectedTab, userId]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -123,7 +257,7 @@ const Home = () => {
                 color={selectedTab === 'replay' ? '#4CAF50' : '#666'} 
               />
               <Text style={[styles.tabText, selectedTab === 'replay' && styles.activeTabText]}>
-                Status
+                Camera Lists
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -141,52 +275,165 @@ const Home = () => {
             </TouchableOpacity>
           </View>
           {/* Main ScrollView */}
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
-              <TouchableOpacity
-                style={styles.videoCard}
-                onPress={() => Alert.alert('AI System', 'AI Fall Detection is running in background. Alerts will be sent automatically when falls are detected.')}
-              >
-                <View style={{ alignItems: 'center', padding: 30, width: 370, }}>
-                  <Ionicons name="analytics-outline" size={40} color="#F44336" />
-                  <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>AI Fall Detection</Text>
-                  <Text style={{ color: '#ccc', fontSize: 12, marginTop: 5, textAlign: 'center' }}>
-                    Status: {systemStatus.modelLoaded ? 'Active' : 'Inactive'}
-                  </Text>
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={selectedTab === 'replay'}>
+            {selectedTab === 'replay' ? (
+              // Status Tab Content - Add Camera functionality
+              <View>
+                {/* Add Camera Button */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
+                  <TouchableOpacity
+                    style={styles.videoCard}
+                    onPress={() => setAddCameraModalVisible(true)}
+                  >
+                    <View style={{ alignItems: 'center', padding: 30, width: 370 }}>
+                      <Ionicons name="add-circle-outline" size={40} color="#4FC3F7" />
+                      <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>Add Camera</Text>
+                      <Text style={{ color: '#ccc', fontSize: 12, marginTop: 5, textAlign: 'center' }}>
+                        Add new camera to the system
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            </View>
-            {/* CCTV System Access Button */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
-              <TouchableOpacity
-                style={styles.videoCard}
-                onPress={() => navigation.navigate('CCTV')}
-              >
-                <View style={{ alignItems: 'center', padding: 30, width: 370, }}>
-                  <Ionicons name="videocam-outline" size={40} color="#4CAF50" />
-                  <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>Camera Lists</Text>
-                  <Text style={{ color: '#ccc', fontSize: 12, marginTop: 5, textAlign: 'center' }}>
-                    Manage cameras and recordings
-                  </Text>
+                
+                {/* Camera List */}
+                {cameras.map((camera, index) => (
+                  <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                    <TouchableOpacity
+                      style={[styles.videoCard, { backgroundColor: camera.relay ? '#23243a' : '#2a2a2a', borderColor: camera.relay ? '#FFD600' : 'transparent', borderWidth: camera.relay ? 2 : 0 }]}
+                      onPress={() => navigation.navigate('CCTVLiveView', { userId, cameraIndex: index, camera })}
+                    >
+                      <View style={{ alignItems: 'center', padding: 20, width: 370 }}>
+                        <Ionicons name={camera.relay ? "cloud-upload" : "videocam-outline"} size={32} color={camera.relay ? "#FFD600" : "#4CAF50"} />
+                        <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 8 }}>{camera.name} {camera.relay ? '[Relay]' : ''}</Text>
+                        {camera.rtsp_url && (
+                          <Text style={{ color: '#ccc', fontSize: 10, marginTop: 4, textAlign: 'center' }}>
+                            {camera.rtsp_url}
+                          </Text>
+                        )}
+                        <Text style={{ color: '#888', fontSize: 10, marginTop: 4 }}>
+                          Added: {camera.added_time ? new Date(camera.added_time).toLocaleDateString() : '-'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              // Accident Videos Tab Content
+              <View>
+                {/* Camera Selection Button */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                  <TouchableOpacity
+                    style={[styles.videoCard, { backgroundColor: '#2a3a4a',}]}
+                    onPress={() => setShowCameraSelector(true)}
+                  >
+                    <View style={{ alignItems: 'center', width: 370 }}>
+                      <Ionicons name="camera-outline" size={32} color="#4FC3F7" />
+                      <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 8 }}>
+                        Select Cameras for AI Monitoring
+                      </Text>
+                      <Text style={{ color: '#ccc', fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+                        {selectedCameras.length > 0 
+                          ? `${selectedCameras.length} camera(s) selected`
+                          : 'Tap to select cameras'
+                        }
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            </View>
 
-            {/* Test Camera Button for AI Fall Detection */}
-            {/*<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
-              <TouchableOpacity
-                style={styles.videoCard}
-                onPress={() => navigation.navigate('TestCamera')}
-              >
-                <View style={{ alignItems: 'center', padding: 30, width: 370, }}>
-                  <Ionicons name="camera-outline" size={40} color="#2196F3" />
-                  <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>Test Camera AI Fall Detection</Text>
-                  <Text style={{ color: '#ccc', fontSize: 12, marginTop: 5, textAlign: 'center' }}>
-                    Open camera to test AI fall detection
-                  </Text>
+                {/* AI Monitoring Control */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 30 }}>
+                  <TouchableOpacity
+                    style={[styles.videoCard, { backgroundColor: isMonitoring ? '#2a5a2a' : '#2a2a2a' }]}
+                    onPress={isMonitoring ? stopMonitoring : startMonitoring}
+                  >
+                    <View style={{ alignItems: 'center', padding: 30, width: 370 }}>
+                      <Ionicons 
+                        name={isMonitoring ? "stop-circle" : "play-circle"} 
+                        size={40} 
+                        color={isMonitoring ? "#4CAF50" : "#F44336"} 
+                      />
+                      <Text style={{ color: '#fff', fontWeight: 'bold', marginTop: 10 }}>
+                        AI Fall Detection
+                      </Text>
+                      <Text style={{ color: '#ccc', fontSize: 12, marginTop: 5, textAlign: 'center' }}>
+                        Status: {isMonitoring ? `Monitoring ${selectedCameras.length} cameras` : 'Click to Start Monitoring'}
+                      </Text>
+                      <Text style={{ color: '#888', fontSize: 10, marginTop: 2 }}>
+                        Model: {systemStatus.modelLoaded ? 'Ready' : 'Not Ready'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            </View>}*/}
+
+                {/* Accident Videos List */}
+                {getFilteredAccidentVideos().length > 0 ? (
+                  <View>
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
+                      🚨 Accident Videos ({getFilteredAccidentVideos().length})
+                      {selectedCameras.length > 0 && (
+                        <Text style={{ color: '#888', fontSize: 14, fontWeight: 'normal' }}>
+                          {' '}(Filtered by selected cameras)
+                        </Text>
+                      )}
+                    </Text>
+                    {getFilteredAccidentVideos().map((video, index) => (
+                      <View key={index} style={{ marginBottom: 20 }}>
+                        <TouchableOpacity
+                          style={[styles.videoCard, { backgroundColor: '#3a2a2a', borderColor: '#F44336', borderWidth: 1 }]}
+                          onPress={() => {
+                            // Navigate to video player or show video details
+                            Alert.alert(
+                              'Accident Video',
+                              `Camera: ${video.camera_name}\nTime: ${new Date(video.created * 1000).toLocaleString()}\nDuration: ${video.duration?.toFixed(1)}s`,
+                              [
+                                { text: 'Close', style: 'cancel' },
+                                { text: 'View Video', onPress: () => {
+                                  // In a real app, you'd navigate to a video player
+                                  console.log('Playing video:', video.filename);
+                                }}
+                              ]
+                            );
+                          }}
+                        >
+                          <View style={{ padding: 20, width: 370 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                              <Ionicons name="warning" size={24} color="#F44336" style={{ marginRight: 10 }} />
+                              <Text style={{ color: '#fff', fontWeight: 'bold', flex: 1 }}>
+                                {video.camera_name}
+                              </Text>
+                              <Text style={{ color: '#888', fontSize: 12 }}>
+                                {video.duration?.toFixed(1)}s
+                              </Text>
+                            </View>
+                            <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 4 }}>
+                              🕒 {new Date(video.created * 1000).toLocaleString()}
+                            </Text>
+                            <Text style={{ color: '#F44336', fontSize: 12 }}>
+                              Fall detected - ±5 seconds clip saved
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={{ alignItems: 'center', marginTop: 40 }}>
+                    <Ionicons name="shield-checkmark" size={60} color="#4CAF50" />
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 20 }}>
+                      No Accidents Detected
+                    </Text>
+                    <Text style={{ color: '#ccc', fontSize: 14, marginTop: 10, textAlign: 'center', paddingHorizontal: 40 }}>
+                      {isMonitoring 
+                        ? 'AI is actively monitoring your cameras for fall detection'
+                        : 'Start AI monitoring to detect accidents automatically'
+                      }
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </ScrollView>
           {/* Footer: Setting, Video List, Logout Buttons */}
           <View style={styles.footer}>
@@ -203,6 +450,127 @@ const Home = () => {
                 <Text style={styles.footerText}>Setting</Text>
               </TouchableOpacity>
             </View>
+          
+          {/* Add Camera Modal */}
+          <AddCameraModal
+            visible={addCameraModalVisible}
+            onClose={() => setAddCameraModalVisible(false)}
+            onCameraAdded={fetchCameras}
+          />
+
+          {/* Camera Selection Modal */}
+          <Modal
+            visible={showCameraSelector}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowCameraSelector(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Cameras for AI Monitoring</Text>
+                  <TouchableOpacity onPress={() => setShowCameraSelector(false)}>
+                    <Ionicons name="close" size={24} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={{ maxHeight: 400 }}>
+                  {/* Select All / Clear All Buttons */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
+                      onPress={selectAllCameras}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Select All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: '#F44336' }]}
+                      onPress={clearCameraSelection}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Clear All</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Camera List */}
+                  {cameras.map((camera, index) => {
+                    const canMonitor = camera.rtsp_url && !camera.relay;
+                    const isSelected = selectedCameras.includes(index);
+                    
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.cameraItem,
+                          {
+                            backgroundColor: isSelected ? '#2a4a2a' : '#2a2a2a',
+                            opacity: canMonitor ? 1 : 0.5
+                          }
+                        ]}
+                        onPress={() => canMonitor && toggleCameraSelection(index)}
+                        disabled={!canMonitor}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                          <Ionicons 
+                            name={isSelected ? "checkbox" : "square-outline"} 
+                            size={24} 
+                            color={isSelected ? "#4CAF50" : "#888"} 
+                          />
+                          <View style={{ marginLeft: 15, flex: 1 }}>
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                              {camera.name}
+                            </Text>
+                            <Text style={{ color: '#ccc', fontSize: 12, marginTop: 2 }}>
+                              {camera.ip}:{camera.port}
+                            </Text>
+                            {!canMonitor && (
+                              <Text style={{ color: '#F44336', fontSize: 10, marginTop: 2 }}>
+                                {camera.relay ? 'Relay camera - not supported' : 'No RTSP URL'}
+                              </Text>
+                            )}
+                          </View>
+                          <Ionicons 
+                            name="videocam" 
+                            size={20} 
+                            color={canMonitor ? "#4FC3F7" : "#666"} 
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Action Buttons */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: '#666', flex: 0.45 }]}
+                    onPress={() => setShowCameraSelector(false)}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton, 
+                      { 
+                        backgroundColor: selectedCameras.length > 0 ? '#4CAF50' : '#666',
+                        flex: 0.45
+                      }
+                    ]}
+                    onPress={() => {
+                      setShowCameraSelector(false);
+                      if (selectedCameras.length > 0 && !isMonitoring) {
+                        startMonitoring();
+                      }
+                    }}
+                    disabled={selectedCameras.length === 0}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                      {selectedCameras.length > 0 ? `Confirm (${selectedCameras.length})` : 'Select Cameras'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -279,10 +647,9 @@ const styles = StyleSheet.create({
   videoCard: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 15,
-    marginBottom: 15,
     overflow: 'hidden',
-    borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+    marginRight: 40,
   },
   bottomSpacer: {
     height: 100, 
