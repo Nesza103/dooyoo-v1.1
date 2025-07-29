@@ -1,6 +1,4 @@
-// Server configuration file
-// Development mode: Use local IP (replace with your computer's IP)
-const BASE_URL = 'https://400b24f03118.ngrok-free.app'; // Change this to your computer's IP 
+const BASE_URL = 'https://df4bc4fe96d2.ngrok-free.app'; // ใช้ ngrok URL
 
 export const API_ENDPOINTS = {
   // Auth
@@ -23,19 +21,33 @@ export const API_ENDPOINTS = {
   CCTV_STATUS: `${BASE_URL}/cctv/status`,
   EDIT_CAMERA: `${BASE_URL}/cctv/edit-camera`,
 
-  // Camera Viewing Endpoints
-  CCTV_VIEW_CAMERA: `${BASE_URL}/cctv/view`,
-  CCTV_STREAM_CAMERA: `${BASE_URL}/cctv/stream`,
-  GET_CAMERAS: `${BASE_URL}/cctv/cameras`,
+  // Camera Viewing Endpoints (ฟังก์ชันที่ใช้ param ควรเป็น function)
+  CCTV_STREAM_CAMERA: (userId, cameraIndex) => `${BASE_URL}/cctv/stream/${userId}/${cameraIndex}`,
+  GET_CAMERAS: (userId) => `${BASE_URL}/cctv/cameras/${userId}`,
   ADD_CAMERA: `${BASE_URL}/cctv/add-camera`,
-  STREAM_CAMERA: `${BASE_URL}/cctv/stream/:userId/:cameraIndex`,
-  ONVIF_DISCOVER: BASE_URL + '/onvif/discover',
+  STREAM_CAMERA: (userId, cameraIndex) => `${BASE_URL}/cctv/stream/${userId}/${cameraIndex}`,
+  ONVIF_DISCOVER: `${BASE_URL}/onvif/discover`,
+
+  // WebRTC Streaming Endpoints (ต้องใช้ param, อย่าซ้ำ key!)
+  WEBRTC_STREAM_INFO: (userId, cameraIndex) => `${BASE_URL}/webrtc/stream/${userId}/${cameraIndex}`,
+  WEBRTC_START: (userId, cameraIndex) => `${BASE_URL}/webrtc/start/${userId}/${cameraIndex}`,
+  WEBRTC_SIGNALING: (userId, cameraIndex) => 
+    `${BASE_URL.replace('https', 'wss')}/ws/webrtc/${userId}/${cameraIndex}`,
 
   // Video API Endpoints
-  GET_VIDEOS: `${BASE_URL}/videos`,
-  GET_VIDEO_FILE: `${BASE_URL}/video`,
-  GET_ACCIDENT_VIDEOS: `${BASE_URL}/accident-videos`,
-  GET_ACCIDENT_VIDEO_FILE: `${BASE_URL}/accident-video-file`,
-  START_MONITORING: `${BASE_URL}/start-monitoring`,
-  STOP_MONITORING: `${BASE_URL}/stop-monitoring`,
-}; 
+  GET_VIDEOS: (userId) => `${BASE_URL}/videos/${userId}`,
+  GET_VIDEO_FILE: (filename) => `${BASE_URL}/video-file/${filename}`,
+  GET_ACCIDENT_VIDEOS: (userId) => `${BASE_URL}/accident-videos/${userId}`,
+  GET_ACCIDENT_VIDEO_FILE: (filename) => `${BASE_URL}/accident-video-file/${filename}`,
+  START_MONITORING: (userId) => `${BASE_URL}/start-monitoring/${userId}`,
+  STOP_MONITORING: (userId) => `${BASE_URL}/stop-monitoring/${userId}`,
+
+  // Relay Frame Endpoints
+  RELAY_FRAME: (userId, cameraName) => `${BASE_URL}/relay/frame/${userId}/${cameraName}`,
+  
+  // Snapshot Endpoints
+  SNAPSHOT: `${BASE_URL}/snapshot`,
+
+  // RTSP Test Endpoint (ต้องเป็น function เท่านั้น!!)
+  RTSP_TEST: (userId, cameraIndex) => `${BASE_URL}/rtsp/test/${userId}/${cameraIndex}`,
+};

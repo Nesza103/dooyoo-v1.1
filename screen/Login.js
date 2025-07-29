@@ -53,25 +53,63 @@ const Login = () => {
   const handleLogin = async () => {
     const isNameValid = handleName(username);
     const isPasswordValid = handlePassword(password);
-
+  
     if (isNameValid && isPasswordValid ) {
+      // เพิ่ม loading state
+      setUsernameError('');
+      setPasswordError('');
       try {
+        console.log('Login: sending request', API_ENDPOINTS.LOGIN, username, password);
+        
+        // เพิ่ม timeout และ error handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // เพิ่มเป็น 30 วินาที
+        
         const response = await fetch(API_ENDPOINTS.LOGIN, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ username, password }),
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
+        console.log('Login: response status', response.status);
+        
         if (response.ok) {
           const data = await response.json();
-          userContext.setUserId(data.uuid);
-          userContext.setUsername(username);
-          userContext.setEmail(data.email || '');
-          navigation.navigate('Home');
+          console.log('Login: response data', data);
+          
+          if (data.uuid) {
+            console.log('Login: Setting userId to', data.uuid);
+            userContext.setUserId(data.uuid);
+            userContext.setUsername(username);
+            userContext.setEmail(data.email || '');
+            
+            // เพิ่ม delay เล็กน้อยเพื่อให้ context อัพเดทก่อน
+            setTimeout(() => {
+              console.log('Login: Navigating to Home');
+              navigation.navigate('Home');
+            }, 100);
+          } else {
+            setUsernameError('Invalid response from server');
+            console.log('Login: invalid response format');
+          }
         } else {
-          setUsernameError('Invalid username or password');
+          const errorData = await response.json().catch(() => ({}));
+          setUsernameError(errorData.detail || 'Invalid username or password');
+          console.log('Login: server error', response.status, errorData);
         }
       } catch (e) {
-        setUsernameError('Network error: ' + e.message);
+        if (e.name === 'AbortError') {
+          setUsernameError('Connection timeout. Please check your internet connection and try again.');
+          console.log('Login: connection timeout');
+        } else {
+          setUsernameError('Network error: ' + e.message);
+          console.log('Login: network error', e);
+        }
       }
     }
   };
@@ -86,7 +124,7 @@ const Login = () => {
 
         <ImageBackground
           source={require('../assets/loginBackground.png')}
-          style={{ flex: 1, width: '100%', height: '100%' }}
+          style={{ flex: 1, width: '100%', height: '110%' }}
           resizeMode="cover"
         >
           <View style={styles.contentContainer}>
@@ -129,6 +167,15 @@ const Login = () => {
             >
               <Text style={styles.loginButtonText}>Login</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.loginButton, { backgroundColor: '#666', marginTop: 10 }]}
+              onPress={() => {
+                console.log('Login: Retrying connection...');
+                handleLogin();
+              }}
+            >
+              <Text style={styles.loginButtonText}>Retry Connection</Text>
+            </TouchableOpacity>
             <View style={styles.orContainer}>
               <View style={styles.orLine} />
               <Text style={styles.orText}>or login with</Text>
@@ -154,7 +201,7 @@ const styles = StyleSheet.create({
   backgroundImage: {
     flex: 1,
     width: '100%',
-    height: '100%',
+    height: '120%',
   },
   
   fullScreen: {
@@ -166,9 +213,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 15,
     borderTopRightRadius: 15,
     paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 30,
-    marginTop: 'auto', 
+    paddingVertical: 30,
+    marginTop: 'auto' , 
   },
   title: {
     fontSize: 20,

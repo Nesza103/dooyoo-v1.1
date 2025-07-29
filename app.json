@@ -1,43 +1,58 @@
 {
   "expo": {
+    "owner": "photchara",
     "name": "dooyoo-v1-1",
-    "slug": "dooyoo-v11",
+    "slug": "dooyoo-v1-1",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/dooyoo_logo.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/dooyoo_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
+      "bundleIdentifier": "com.photchara.dooyoo",
       "supportsTablet": true,
-      "bundleIdentifier": "com.dooyoo.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "NSCameraUsageDescription": "This app needs access to camera for WebRTC video streaming",
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for WebRTC audio streaming"
       }
     },
     "android": {
+      "package": "com.photchara.dooyoo",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET"
+      ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/dooyoo_logo.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.dooyoo.app"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "developmentClient": {
+            "silentLaunch": true
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
-        "projectId": "8646298b-72ad-402c-a238-ba4525830d8b"
+        "projectId": "dd597e23-4ab6-4a80-a1e4-7766dbfd9a56"
       }
-    },
-    "runtimeVersion": "1.0.0",
-    "updates": {
-      "url": null
     }
   }
 }

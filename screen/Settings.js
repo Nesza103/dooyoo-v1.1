@@ -175,7 +175,10 @@ const Settings = ({ navigation }) => {
         <Text style={{ color: isDarkTheme ? '#fff' : '#222', fontSize: 20, fontWeight: 'bold', marginTop: 10 }}>{username}</Text>
         <Text style={{ color: isDarkTheme ? '#aaa' : '#888', fontSize: 15, marginTop: 2 }}>{email}</Text>
         {userId ? (
-          <Text style={{ color: isDarkTheme ? '#888' : '#bbb', fontSize: 13, marginTop: 2 }} selectable>User ID: {userId}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <Text style={{ color: isDarkTheme ? '#888' : '#bbb', fontSize: 13 }}>User ID: </Text>
+            <Text style={{ color: isDarkTheme ? '#888' : '#bbb', fontSize: 13, fontWeight: 'bold' }} selectable>{userId}</Text>
+          </View>
         ) : null}
       </View>
 

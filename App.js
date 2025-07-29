@@ -7,13 +7,13 @@ import Login from './screen/Login';
 import SignUp from './screen/SignUp';
 import Home from './screen/Home';
 import Settings from './screen/Settings';
-import CCTV from './screen/CCTV';
 import CCTVLiveView from './screen/CCTVLiveView';
 import TestCamera from './screen/TestCamera';
 import { API_ENDPOINTS } from './config';
 import { ThemeContext, UserContext } from './contexts/AppContext';
 import { VideoProvider } from './contexts/VideoContext';
 import VideoList from './screen/VideoList';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createStackNavigator();
 
@@ -24,6 +24,25 @@ export default function App() {
   const [userId, setUserId] = React.useState('');
   const [username, setUsername] = React.useState('');
   const [email, setEmail] = React.useState('');
+
+  // Restore userId ตอนเปิดแอป
+  React.useEffect(() => {
+    AsyncStorage.getItem('userId').then(storedId => {
+      if (storedId) setUserId(storedId);
+    });
+  }, []);
+
+  // Save userId ทุกครั้งที่เปลี่ยน
+  React.useEffect(() => {
+    console.log('App: userId changed to', userId);
+    if (userId) {
+      AsyncStorage.setItem('userId', userId);
+      console.log('App: Saved userId to AsyncStorage');
+    } else {
+      AsyncStorage.removeItem('userId');
+      console.log('App: Removed userId from AsyncStorage');
+    }
+  }, [userId]);
 
   React.useEffect(() => {
     if (!userId) return;
@@ -45,12 +64,11 @@ export default function App() {
       <ThemeContext.Provider value={{ theme, setTheme }}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <NavigationContainer theme={theme === 'dark' ? { dark: true, colors: { background: '#151718', text: '#ECEDEE', card: '#222', border: '#333', notification: '#fff' } } : undefined}>
-            <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+            <Stack.Navigator initialRouteName={userId ? "Home" : "Login"} screenOptions={{ headerShown: false }}>
               <Stack.Screen name="Login" component={Login} />
               <Stack.Screen name="SignUp" component={SignUp} />
               <Stack.Screen name="Home" component={Home} />
               <Stack.Screen name="Settings" component={Settings} />
-              <Stack.Screen name="CCTV" component={CCTV} options={{ headerShown: false }} />
               <Stack.Screen name="CCTVLiveView" component={CCTVLiveView} />
               <Stack.Screen name="TestCamera" component={TestCamera} />
                 <Stack.Screen name="VideoList" component={VideoList} />

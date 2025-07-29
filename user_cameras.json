@@ -1,10 +1,16 @@
 {
   "d0495dc3-1a00-4924-bd4a-7534dca552f7": [
     {
-      "name": "V",
+      "name": "Hey",
       "relay": false,
-      "added_time": "2025-07-24T00:11:26.078889",
-      "rtsp_url": "f"
+      "added_time": "2025-07-28T01:53:45.025670",
+      "rtsp_url": "rtsp://taponsc:123456@192.168.0.123:554/stream1"
+    },
+    {
+      "name": "Home2",
+      "relay": false,
+      "added_time": "2025-07-28T18:04:35.951538",
+      "rtsp_url": "rtsp://admin:Darknet103@192.168.0.111:554/onvif1"
     }
   ]
 }
